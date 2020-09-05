@@ -1,5 +1,10 @@
+
 function Get-TimeStamp {   
     return "[{0:dd/MM/yy} {0:HH:mm:ss}]" -f (Get-Date)
+}
+
+if (-NOT (Test-Path "C:\Centrify")) {
+    New-Item -ItemType Directory -Path C:\Centrify
 }
 
 $startuplogfile = "C:\Centrify\centrifycc_startup.log"
@@ -10,31 +15,31 @@ $centrifycc_installed = ((gp HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uni
 # Name of package file.
 $packageFilename = "cagentinstaller.msi"
 # Registration code to use.
-$regCode = 
+$regCode = ""
 # Tenant URL against which to enroll.
-$cloudURL = 
+$cloudURL = ""
 # Connector proxy address used by cagent to connect to tenant
-$proxyAddress = 
+$proxyAddress = ""
 # System Set that the instance to be added
-$systemSet = 
+$systemSet = ""
 # Name of Connector the onboarded system will use
-$connector = 
+$connector = ""
 # Local group mapping to be configured in PAS
-$groupMapping = 
+$groupMapping = ""
 
 # Optional - select the FQDN Type (PrivateIP, PublicIP, PrivateDNS, PublicDNS). Defaults to PublicDNS.
 $addressType = ''
 # Optional - select the Name Type (NameTag, LocalHostname, PublicHostname, InstanceID). Defaults to LocalHostname.
 $nameType = ''
-
+ 
 $system_name = $env:computername
 $system_name = "azure-" + $system_name
 $ipaddr = (Get-NetIPAddress | Where-Object {$_.AddressState -eq "Preferred" -and $_.PrefixOrigin -eq "Dhcp"}).IPAddress
 
 if (-NOT $centrifycc_installed) {
     Write-Output "$(Get-TimeStamp) Retreiving package..." | Out-file $startuplogfile -append
-    New-Item -ItemType Directory -Path C:\Centrify
-    #$url="https://raw.githubusercontent.com/marcozj/GCP-Automation/master/cagentinstaller.msi"
+
+    #$url="https://raw.githubusercontent.com/marcozj/AWS-Automation/master/cagentinstaller.msi"
     $url="http://edge.centrify.com/products/cloud-service/WindowsAgent/Centrify/cagentinstaller.msi"
     $filepath="c:\Centrify\cagentinstaller.msi"
     $webclient = New-Object System.Net.WebClient
@@ -42,9 +47,39 @@ if (-NOT $centrifycc_installed) {
     
     $file = Get-ChildItem "C:\Centrify\cagentinstaller.msi"
 }
+
+$shutdownScript = "C:\Centrify\centrifycc_shutdown.ps1"
+if (-NOT (Test-Path $shutdownScript)) {
+    Write-Output "$(Get-TimeStamp) Retreiving shutdown file..." | Out-file $startuplogfile -append
+    $url="https://raw.githubusercontent.com/marcozj/Azure-Automation/master/centrifycc_shutdown.ps1"
+    $webclient = New-Object System.Net.WebClient
+    $webclient.DownloadFile($url,$shutdownScript)
+}
+
+$iniFile = "C:\Centrify\psscripts.ini"
+if (-NOT (Test-Path $iniFile)) {
+    Write-Output "$(Get-TimeStamp) Retreiving ini file..." | Out-file $startuplogfile -append
+    $url="https://raw.githubusercontent.com/marcozj/Azure-Automation/master/psscripts.ini"
+    $webclient = New-Object System.Net.WebClient
+    $webclient.DownloadFile($url,$iniFile)
+    $dir = "C:\Windows\system32\GroupPolicy\Machine\Scripts\"
+    if (-NOT (Test-Path $dir)) {
+        New-Item -ItemType Directory -Path $dir
+    }
+    Copy-Item -Path $iniFile -Destination C:\Windows\system32\GroupPolicy\Machine\Scripts\psscripts.ini
+}
+
+$regFile = "C:\Centrify\centrifycc_shutdown.reg"
+if (-NOT (Test-Path $regFile)) {
+    Write-Output "$(Get-TimeStamp) Retreiving registry file..." | Out-file $startuplogfile -append
+    $url="https://raw.githubusercontent.com/marcozj/Azure-Automation/master/centrifycc_shutdown.reg"
+    $webclient = New-Object System.Net.WebClient
+    $webclient.DownloadFile($url,$regFile)
+    & reg import $regFile
+}
   
 Write-Output "$(Get-TimeStamp) The system will be enrolled as $system_name with IP/FQDN $ipaddr." | Out-file $startuplogfile -append
-  
+
 $DataStamp = get-date -Format yyyyMMddTHHmmss
 $logFile = '{0}-{1}.log' -f $file.fullname,$DataStamp
 $MSIArguments = @(
@@ -58,13 +93,13 @@ $logFile
  
 if (-NOT $centrifycc_installed) {
     Write-Output "$(Get-TimeStamp) Installing CentrifyCC..." | Out-file $startuplogfile -append
-    Start-Process "msiexec.exe" -ArgumentList $MSIArguments -Wait -NoNewWindow
+    Start-Process "msiexec.exe" -ArgumentList $MSIArguments   -Wait -NoNewWindow
 }
 
 Write-Output "$(Get-TimeStamp) Enrolling..." | Out-file $startuplogfile -append
 & "C:\Program Files\Centrify\cagent\cenroll.exe" --force --tenant $cloudURL --code $regCode --features all --address=$ipaddr --name=$system_name --agentauth="MOX CentrifyCC Local Admins,MOX CentrifyCC Normal User" --resource-permission="role:MOX CentrifyCC Local Admins:View" --resource-permission="role:MOX CentrifyCC Normal User:View" --resource-set=$systemSet --http-proxy $proxyAddress -S CertAuthEnable:true -S Connectors:$connector --resource-permission="role:MOX Infrastructure Admins:View" --resource-permission="role:System Administrator:View" --groupmap=$groupMapping
 Start-Sleep -s 10
-    
+
 Write-Output "$(Get-TimeStamp) Change administrator account password..." | Out-file $startuplogfile -append
 
 # Generate random password
@@ -77,7 +112,6 @@ $Password = [System.Web.Security.Membership]::GeneratePassword($length, $nonAlph
 $Secure_String_Pwd = ConvertTo-SecureString $Password -AsPlainText -Force
 $UserAccount = Get-LocalUser -Name "azureadmin"
 $UserAccount | Set-LocalUser -Password $Secure_String_Pwd
-Enable-LocalUser -Name "azureadmin"
-    
+ 
 Write-Output "$(Get-TimeStamp) Vaulting account..." | Out-file $startuplogfile -append
 & "C:\Program Files\Centrify\cagent\csetaccount.exe" --managed=false --password=$Password --permission='\"role:infra_admin_cset:View,Login\"' --permission='\"role:sysadmin_cset:View,Login\"' azureadmin
