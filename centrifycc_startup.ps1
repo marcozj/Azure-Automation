@@ -27,8 +27,9 @@ $addressType = ''
 # Optional - select the Name Type (NameTag, LocalHostname, PublicHostname, InstanceID). Defaults to LocalHostname.
 $nameType = ''
 
-$system_name = Get-GceMetadata -Path "instance/name"
-$instid = Get-GceMetadata -Path "instance/id"
+$system_name = $env:computername
+$system_name = "azure-" + $system_name
+$ipaddr = (Get-NetIPAddress | Where-Object {$_.AddressState -eq "Preferred" -and $_.PrefixOrigin -eq "Dhcp"}).IPAddress
 
 if (-NOT $centrifycc_installed) {
     Write-Output "$(Get-TimeStamp) Retreiving package..." | Out-file $startuplogfile -append
@@ -40,22 +41,6 @@ if (-NOT $centrifycc_installed) {
     $webclient.DownloadFile($url,$filepath)
     
     $file = Get-ChildItem "C:\Centrify\cagentinstaller.msi"
-}
-# Retrieves the Name to be registered in PAS.
-switch ($nameType.ToLower())
-{
-   "localhostname"   {$system_name = Get-GceMetadata -Path "instance/hostname" }
-   "instanceid"      {$system_name = $instid }
-   default {$system_name = Get-GceMetadata -Path "instance/name"}
-}
-$system_name = "gcp-" + $system_name
-  
-# Retrieves the FQDN to be registered in PAS.
-switch ($addressType.ToLower())
-{
-   "publicip"   {$ipaddr = Get-GceMetadata -Path "instance/network-interfaces/0/access-configs/0/external-ip" }
-   "privateip"  {$ipaddr = Get-GceMetadata -Path "instance/network-interfaces/0/ip" }
-   default {$ipaddr = Get-GceMetadata -Path "instance/network-interfaces/0/ip" }
 }
   
 Write-Output "$(Get-TimeStamp) The system will be enrolled as $system_name with IP/FQDN $ipaddr." | Out-file $startuplogfile -append
@@ -77,7 +62,7 @@ if (-NOT $centrifycc_installed) {
 }
 
 Write-Output "$(Get-TimeStamp) Enrolling..." | Out-file $startuplogfile -append
-& "C:\Program Files\Centrify\cagent\cenroll.exe" --force --tenant  $cloudURL --code $regCode --features all --address=$ipaddr --name=$system_name --agentauth="LAB Cloud Local Admins,LAB Cloud Normal User" --resource-permission="role:LAB Cloud Local Admins:View" --resource-permission="role:LAB Cloud Normal User:View" --resource-set=$systemSet --http-proxy $proxyAddress -S CertAuthEnable:true -S Connectors:$connector --resource-permission="role:LAB Infrastructure Admins:View" --resource-permission="role:System Administrator:View" --groupmap=$groupMapping
+& "C:\Program Files\Centrify\cagent\cenroll.exe" --force --tenant $cloudURL --code $regCode --features all --address=$ipaddr --name=$system_name --agentauth="MOX CentrifyCC Local Admins,MOX CentrifyCC Normal User" --resource-permission="role:MOX CentrifyCC Local Admins:View" --resource-permission="role:MOX CentrifyCC Normal User:View" --resource-set=$systemSet --http-proxy $proxyAddress -S CertAuthEnable:true -S Connectors:$connector --resource-permission="role:MOX Infrastructure Admins:View" --resource-permission="role:System Administrator:View" --groupmap=$groupMapping
 Start-Sleep -s 10
     
 Write-Output "$(Get-TimeStamp) Change administrator account password..." | Out-file $startuplogfile -append
@@ -90,9 +75,9 @@ $nonAlphaChars = 2
 $length = Get-Random -Minimum $minLength -Maximum $maxLength
 $Password = [System.Web.Security.Membership]::GeneratePassword($length, $nonAlphaChars)
 $Secure_String_Pwd = ConvertTo-SecureString $Password -AsPlainText -Force
-$UserAccount = Get-LocalUser -Name "Administrator"
+$UserAccount = Get-LocalUser -Name "azureadmin"
 $UserAccount | Set-LocalUser -Password $Secure_String_Pwd
-Enable-LocalUser -Name "Administrator"
+Enable-LocalUser -Name "azureadmin"
     
 Write-Output "$(Get-TimeStamp) Vaulting account..." | Out-file $startuplogfile -append
-& "C:\Program Files\Centrify\cagent\csetaccount.exe" --managed=false --password=$Password --permission='\"role:infra_admin_cset:View,Login\"' --permission='\"role:sysadmin_cset:View,Login\"' Administrator
+& "C:\Program Files\Centrify\cagent\csetaccount.exe" --managed=false --password=$Password --permission='\"role:infra_admin_cset:View,Login\"' --permission='\"role:sysadmin_cset:View,Login\"' azureadmin
