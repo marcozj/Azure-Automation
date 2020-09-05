@@ -8,11 +8,11 @@ function prepare_for_cenroll()
     NETWORK_ADDR_TYPE=${NETWORK_ADDR_TYPE:-PublicIP}
     case "$NETWORK_ADDR_TYPE" in
     PublicIP)
-        CENTRIFYCC_NETWORK_ADDR=`curl --fail -s -H Metadata:True "http://169.254.169.254/metadata/instance?api-version=2020-06-01" | jq '.network' | jq '.interface[0]' | jq '.ipv4' | jq '.ipAddress[0]' | jq '.publicIpAddress'` | sed -e 's/^"//' -e 's/"$//'
+        CENTRIFYCC_NETWORK_ADDR=`curl --fail -s -H Metadata:True "http://169.254.169.254/metadata/instance?api-version=2020-06-01" | jq '.network' | jq '.interface[0]' | jq '.ipv4' | jq '.ipAddress[0]' | jq '.publicIpAddress'` | sed -e 's/^"//' -e 's/"$//'`
         r=$?
         ;; 
     PrivateIP)
-        CENTRIFYCC_NETWORK_ADDR=`curl --fail -s -H Metadata:True "http://169.254.169.254/metadata/instance?api-version=2020-06-01" | jq '.network' | jq '.interface[0]' | jq '.ipv4' | jq '.ipAddress[0]' | jq '.privateIpAddress'` | sed -e 's/^"//' -e 's/"$//'
+        CENTRIFYCC_NETWORK_ADDR=`curl --fail -s -H Metadata:True "http://169.254.169.254/metadata/instance?api-version=2020-06-01" | jq '.network' | jq '.interface[0]' | jq '.ipv4' | jq '.ipAddress[0]' | jq '.privateIpAddress'` | sed -e 's/^"//' -e 's/"$//'`
         r=$?
         ;;
     HostName)
@@ -43,7 +43,7 @@ function generate_computer_name()
         fi
         ;;
     INSTANCE_ID)
-        instance_id=`curl --fail -s -H Metadata:True "http://169.254.169.254/metadata/instance?api-version=2020-06-01" | jq '.compute' | jq '.vmId'` | sed -e 's/^"//' -e 's/"$//'
+        instance_id=`curl --fail -s -H Metadata:True "http://169.254.169.254/metadata/instance?api-version=2020-06-01" | jq '.compute' | jq '.vmId'` | sed -e 's/^"//' -e 's/"$//'`
         r=$?
         if [ $r -ne 0 ];then
             echo "$CENTRIFY_MSG_PREX: cannot get instance id" && return $r
