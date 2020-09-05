@@ -241,6 +241,12 @@ function common_prerequisite()
             echo "$CENTRIFY_MSG_PREX: perl installation failed"
             return $r
         fi
+        yum install jq -y
+        r=$?
+        if [ $r -ne 0 ];then
+            echo "$CENTRIFY_MSG_PREX: jq installation failed"
+            return $r
+        fi
         ;;
     sles)
         sudo zypper -n install apparmor-profiles yast2-apparmor
